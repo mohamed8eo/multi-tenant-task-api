@@ -16,7 +16,7 @@ const validationSchema = Joi.object({
     JWT_REFRESH_EXPIRES_IN: Joi.string().required(),
     FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
     PORT: Joi.number().default(3000),
-});
+}).unknown(true);
 
 function validate(config: Record<string, unknown>) {
     const { error, value } = validationSchema.validate(config, {
