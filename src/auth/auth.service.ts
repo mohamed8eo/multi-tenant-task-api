@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { RegisterDto } from './dto/register.dto.js';
@@ -24,14 +24,32 @@ export class AuthService {
 
     async register(dto: RegisterDto): Promise<RegisterResponse> {
         const hashedPassword = await argon2.hash(dto.password);
-        const [user] = await this.db
-            .insert(users)
-            .values({
-                email: dto.email,
-                username: dto.username,
-                name: dto.name,
-                password: hashedPassword,
-            }).returning()
+        let user;
+        try {
+            const [insertedUser] = await this.db
+                .insert(users)
+                .values({
+                    email: dto.email,
+                    username: dto.username,
+                    name: dto.name,
+                    password: hashedPassword,
+                }).returning();
+            user = insertedUser;
+        } catch (err: any) {
+            const code = err.code || err.cause?.code;
+            if (code === '23505') {
+                const detail = err.detail || '';
+                const constraint = err.constraint || '';
+                if (detail.includes('email') || constraint.includes('email')) {
+                    throw new ConflictException('Email already exists');
+                }
+                if (detail.includes('username') || constraint.includes('username')) {
+                    throw new ConflictException('Username already exists');
+                }
+                throw new ConflictException('User already exists');
+            }
+            throw err;
+        }
 
         const { accessToken, refreshToken } = await this.createToken(user.id)
 
@@ -142,7 +160,7 @@ export class AuthService {
             );
     }
 
-    private async createToken(userID: string): Promise<TokenResponse> {
+    async createToken(userID: string): Promise<TokenResponse> {
         const payload = {
             sub: userID
         }
@@ -150,7 +168,7 @@ export class AuthService {
         const accessToken: string = await this.jwtService.signAsync(payload)
         const refreshToken: string = await this.jwtService.signAsync(payload, {
             secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-            expiresIn: this.config.getOrThrow<StringValue>('JWT_REFRESH_EXPIRES_IN'),
+            expiresIn: this.config.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as StringValue,
         })
         return {
             accessToken,
