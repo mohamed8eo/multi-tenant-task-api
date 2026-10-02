@@ -36,14 +36,13 @@ export class AuthService {
                 }).returning();
             user = insertedUser;
         } catch (err: any) {
-            const code = err.code || err.cause?.code;
-            if (code === '23505') {
-                const detail = err.detail || '';
-                const constraint = err.constraint || '';
-                if (detail.includes('email') || constraint.includes('email')) {
+            const pgErr = err.cause ?? err;
+            if (pgErr.code === '23505') {
+                const constraint = pgErr.constraint ?? '';
+                if (constraint.includes('email')) {
                     throw new ConflictException('Email already exists');
                 }
-                if (detail.includes('username') || constraint.includes('username')) {
+                if (constraint.includes('username')) {
                     throw new ConflictException('Username already exists');
                 }
                 throw new ConflictException('User already exists');

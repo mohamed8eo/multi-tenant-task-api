@@ -15,8 +15,8 @@ export class DatabaseHealthIndicator {
         try {
             await this.db.execute(sql`SELECT 1`);
             return this.healthIndicatorService.check(key).up();
-        } catch (e: any) {
-            return this.healthIndicatorService.check(key).down({ message: e.message });
+        } catch {
+            return this.healthIndicatorService.check(key).down({ message: 'Database is down' });
         }
     }
 }

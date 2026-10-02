@@ -1,5 +1,4 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { AppController } from './app.controller.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_PIPE } from '@nestjs/core';
 import { DrizzleModule } from '@nestjs/drizzle';
@@ -45,7 +44,7 @@ function validate(config: Record<string, unknown>) {
         AuthModule,
         HealthModule,
     ],
-    controllers: [AppController],
+    controllers: [],
     providers: [
         {
             provide: APP_PIPE,

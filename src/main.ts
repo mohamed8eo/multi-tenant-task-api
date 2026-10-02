@@ -1,12 +1,10 @@
+import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-async function bootstrap() {
-    const app = await NestFactory.create(AppModule, {
-        routeConflictPolicy: { duplicate: 'error', shadow: 'warn' },
-    });
+export function setupApp(app: INestApplication) {
     app.use(cookieParser());
     app.useSecurityHeaders();
     app.enableCors({
@@ -15,8 +13,15 @@ async function bootstrap() {
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     });
-    app.setGlobalPrefix('api/v1')
+    app.setGlobalPrefix('api/v1');
+}
 
+async function bootstrap() {
+    const app = await NestFactory.create(AppModule, {
+        routeConflictPolicy: { duplicate: 'error', shadow: 'warn' },
+    });
+    app.enableShutdownHooks();
+    setupApp(app);
 
     const config = new DocumentBuilder()
         .setTitle('multi-tenant-task-api')
@@ -26,10 +31,11 @@ async function bootstrap() {
         .build();
 
     const document = SwaggerModule.createDocument(app, config);
-
     SwaggerModule.setup('docs', app, document);
-
 
     await app.listen(process.env.PORT ?? 3000);
 }
-await bootstrap();
+
+if (process.env.NODE_ENV !== 'test') {
+    void bootstrap();
+}
