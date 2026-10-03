@@ -23,6 +23,7 @@ describe('AuthService', () => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
+    transaction: vi.fn(async (cb) => cb(mockDb)),
   };
 
   const mockJwtService = {
@@ -90,10 +91,17 @@ describe('AuthService', () => {
       expect(argon2.hash).toHaveBeenCalledWith(dto.password);
       expect(mockDb.insert).toHaveBeenCalled();
       expect(mockDb.values).toHaveBeenCalledWith({
+        id: expect.any(String),
         email: dto.email,
         username: dto.username,
         name: dto.name,
         password: 'hashed-password',
+      });
+      expect(mockDb.values).toHaveBeenCalledWith({
+        id: expect.any(String),
+        userId: createdUser.id,
+        tokenHash: 'hashed-password',
+        expiresAt: expect.any(Date),
       });
       expect(mockJwtService.signAsync).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
@@ -189,8 +197,16 @@ describe('AuthService', () => {
       );
     });
 
-    it('should throw UnauthorizedException if no matching valid refresh token found in db', async () => {
+    it('should throw UnauthorizedException if token payload lacks jti', async () => {
       mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: 'user-id-1' });
+
+      await expect(service.refresh('valid-jwt-no-jti')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+    });
+
+    it('should throw UnauthorizedException if no matching valid refresh token found in db', async () => {
+      mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: 'user-id-1', jti: 'token-id-1' });
       mockDb.where.mockResolvedValueOnce([]);
 
       await expect(service.refresh('valid-jwt-no-record')).rejects.toThrow(
@@ -200,18 +216,18 @@ describe('AuthService', () => {
 
     it('should successfully refresh tokens when valid and revoke old token', async () => {
       const userId = 'user-id-1';
+      const tokenId = 'token-id-1';
       const oldToken = 'old-refresh-token';
       const tokenRecord = {
-        id: 'token-id-1',
+        id: tokenId,
         userId,
         tokenHash: 'hash',
         expiresAt: new Date(Date.now() + 1000000),
         revokedAt: null,
       };
 
-      mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: userId });
+      mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: userId, jti: tokenId });
       mockDb.where.mockResolvedValueOnce([tokenRecord]);
-      vi.mocked(argon2.verify).mockResolvedValueOnce(true);
 
       const result = await service.refresh(oldToken);
 
@@ -240,13 +256,13 @@ describe('AuthService', () => {
   });
 
   describe('createToken', () => {
-    it('should create access and refresh tokens', async () => {
+    it('should create access and refresh tokens with jti', async () => {
       const userId = 'user-id-1';
       const tokens = await service.createToken(userId);
 
       expect(mockJwtService.signAsync).toHaveBeenCalledWith({ sub: userId });
       expect(mockJwtService.signAsync).toHaveBeenCalledWith(
-        { sub: userId },
+        { sub: userId, jti: expect.any(String) },
         {
           secret: 'refresh-secret',
           expiresIn: '7d',
@@ -255,6 +271,7 @@ describe('AuthService', () => {
       expect(tokens).toEqual({
         accessToken: 'mock-token',
         refreshToken: 'mock-token',
+        tokenId: expect.any(String),
       });
     });
   });
