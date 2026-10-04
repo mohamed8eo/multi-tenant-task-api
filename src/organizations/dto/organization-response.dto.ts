@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrgRole } from '../../db/schema/memberships.js';
+import type { OrgRole } from '../../db/schema/memberships.js';
 
 export class OrganizationResponse {
     @ApiProperty() id: string;
