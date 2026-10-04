@@ -23,6 +23,13 @@ describe('Auth & Organizations (e2e)', () => {
     db = app.get('DrizzleDatabase');
 
     await migrate(db, { migrationsFolder: './drizzle' });
+
+    try {
+      await db.delete(organizations).where(eq(organizations.name, 'E2E Org'));
+      await db.delete(users).where(eq(users.email, 'e2e@example.com'));
+    } catch {
+      // ignore
+    }
   });
 
   afterAll(async () => {
