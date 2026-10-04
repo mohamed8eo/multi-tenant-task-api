@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UseGuards, UnauthorizedException, HttpCode } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthService } from './auth.service.js';
@@ -31,6 +31,7 @@ export class AuthController {
         };
     }
 
+    @HttpCode(200)
     @Post('login')
     @ApiOperation({ summary: 'Login user' })
     @ApiResponse({ status: 200, description: 'User successfully logged in.' })
@@ -49,6 +50,7 @@ export class AuthController {
         };
     }
 
+    @HttpCode(200)
     @Post('refresh')
     @ApiOperation({ summary: 'Refresh access token using refresh token cookie' })
     @ApiResponse({ status: 200, description: 'Token successfully refreshed.' })
@@ -72,6 +74,7 @@ export class AuthController {
 
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
+    @HttpCode(200)
     @Post('logout')
     @ApiOperation({ summary: 'Logout user and revoke refresh tokens' })
     @ApiResponse({ status: 200, description: 'Successfully logged out.' })

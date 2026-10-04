@@ -5,6 +5,7 @@ import { AppModule } from './../src/app.module.js';
 import { setupApp } from './../src/main.js';
 import { users, organizations } from '../src/db/schema/index.js';
 import { eq } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
 describe('Auth & Organizations (e2e)', () => {
   let app: INestApplication;
@@ -20,12 +21,18 @@ describe('Auth & Organizations (e2e)', () => {
     setupApp(app);
     await app.init();
     db = app.get('DrizzleDatabase');
+
+    await migrate(db, { migrationsFolder: './drizzle' });
   });
 
   afterAll(async () => {
     if (db) {
-      await db.delete(organizations).where(eq(organizations.name, 'E2E Org'));
-      await db.delete(users).where(eq(users.email, 'e2e@example.com'));
+      try {
+        await db.delete(organizations).where(eq(organizations.name, 'E2E Org'));
+        await db.delete(users).where(eq(users.email, 'e2e@example.com'));
+      } catch {
+        // ignore if tables not created
+      }
     }
     await app.close();
   });
