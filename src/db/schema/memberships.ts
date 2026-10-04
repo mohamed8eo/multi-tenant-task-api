@@ -3,6 +3,7 @@ import { users } from './users.js';
 import { organizations } from './organizations.js';
 
 export const orgRole = pgEnum('org_role', ['owner', 'admin', 'member']);
+export type OrgRole = (typeof orgRole.enumValues)[number];
 
 export const memberships = pgTable('memberships', {
   id: uuid('id').primaryKey().defaultRandom(),

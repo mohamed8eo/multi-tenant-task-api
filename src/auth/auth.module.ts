@@ -20,5 +20,6 @@ import { AccessTokenStrategy } from './strategies/access-token.strategy.js';
     ],
     controllers: [AuthController],
     providers: [AuthService, AccessTokenStrategy],
+    exports: [AuthService]
 })
 export class AuthModule { }

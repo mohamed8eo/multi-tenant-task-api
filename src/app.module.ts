@@ -5,6 +5,7 @@ import { DrizzleModule } from '@nestjs/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthModule } from './health/health.module.js';
+import { OrganizationsModule } from './organizations/organizations.module.js';
 import Joi from 'joi';
 
 const validationSchema = Joi.object({
@@ -43,6 +44,7 @@ function validate(config: Record<string, unknown>) {
         }),
         AuthModule,
         HealthModule,
+        OrganizationsModule,
     ],
     controllers: [],
     providers: [

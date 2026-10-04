@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { JwtUser } from '../interfaces/jwt-user.interface.js';
 
 interface AccessTokenPayload {
     sub: string;
@@ -23,7 +24,7 @@ export class AccessTokenStrategy extends PassportStrategy(
         });
     }
 
-    async validate(payload: AccessTokenPayload) {
+    async validate(payload: AccessTokenPayload): Promise<JwtUser> {
         return {
             userId: payload.sub
         }
