@@ -5,7 +5,10 @@ import { OrganizationsService } from './organizations.service.js';
 import { OrganizationResponse } from './dto/organization-response.dto.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { JwtUser } from '../auth/interfaces/jwt-user.interface.js';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
+import { TenantScoped } from '../tenancy/decorators/tenant-scoped.decorator.js';
+import { CurrentTenant } from '../tenancy/decorators/current-tenant.decorator.js';
+import type { Tenant } from '../tenancy/interfaces/tenant.interface.js';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
@@ -34,5 +37,14 @@ export class OrganizationsController {
     @ApiResponse({ status: 401, description: 'Unauthorized.' })
     async findAllForUser(@CurrentUser() user: JwtUser): Promise<OrganizationResponse[]> {
         return this.organizationsService.findAllForUser(user.userId)
+    }
+
+
+
+    @Get('current')
+    @TenantScoped()
+    @ApiOkResponse({ type: OrganizationResponse })
+    async findCurrent(@CurrentTenant() tenant: Tenant): Promise<OrganizationResponse> {
+        return await this.organizationsService.findCurrent(tenant)
     }
 }

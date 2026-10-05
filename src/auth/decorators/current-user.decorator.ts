@@ -7,4 +7,5 @@ export const CurrentUser = createParamDecorator(
         const user = ctx.switchToHttp().getRequest<Request & { user: JwtUser }>().user;
         return field ? user?.[field] : user;
     }
+
 )

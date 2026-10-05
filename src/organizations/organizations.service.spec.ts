@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrganizationsService } from './organizations.service.js';
-import { UnauthorizedException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { UnauthorizedException, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { organizations } from '../db/schema/organizations.js';
 import { memberships } from '../db/schema/memberships.js';
 
@@ -117,6 +117,25 @@ describe('OrganizationsService', () => {
       expect(mockDb.where).toHaveBeenCalled();
       expect(mockDb.orderBy).toHaveBeenCalled();
       expect(result).toEqual(orgs);
+    });
+  });
+
+  describe('findCurrent', () => {
+    const tenant = { organizationId: 'org-1', role: 'admin' as const };
+
+    it('should return the organization with the tenant role', async () => {
+      const org = { id: 'org-1', name: 'Org 1', createdAt: new Date() };
+      mockDb.where.mockResolvedValueOnce([org]);
+
+      const result = await service.findCurrent(tenant);
+
+      expect(result).toEqual({ ...org, role: 'admin' });
+    });
+
+    it('should throw NotFoundException when the organization does not exist', async () => {
+      mockDb.where.mockResolvedValueOnce([]);
+
+      await expect(service.findCurrent(tenant)).rejects.toThrow(NotFoundException);
     });
   });
 });

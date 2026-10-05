@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrganizationsController } from './organizations.controller.js';
 import { OrganizationsService } from './organizations.service.js';
+import { TenantGuard } from '../tenancy/guards/tenant.guard.js';
 
 describe('OrganizationsController', () => {
   let controller: OrganizationsController;
@@ -9,6 +10,7 @@ describe('OrganizationsController', () => {
   const mockOrganizationsService = {
     create: vi.fn(),
     findAllForUser: vi.fn(),
+    findCurrent: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -22,7 +24,10 @@ describe('OrganizationsController', () => {
           useValue: mockOrganizationsService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(TenantGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<OrganizationsController>(OrganizationsController);
     service = module.get<OrganizationsService>(OrganizationsService);
@@ -58,6 +63,19 @@ describe('OrganizationsController', () => {
 
       expect(service.findAllForUser).toHaveBeenCalledWith(user.userId);
       expect(result).toEqual(orgs);
+    });
+  });
+
+  describe('findCurrent', () => {
+    it('should call organizationsService.findCurrent with the tenant and return the result', async () => {
+      const tenant = { organizationId: 'org-1', role: 'admin' as const };
+      const expected = { id: 'org-1', name: 'Test Org', role: 'admin' as const, createdAt: new Date() };
+      mockOrganizationsService.findCurrent.mockResolvedValueOnce(expected);
+
+      const result = await controller.findCurrent(tenant);
+
+      expect(service.findCurrent).toHaveBeenCalledWith(tenant);
+      expect(result).toEqual(expected);
     });
   });
 });

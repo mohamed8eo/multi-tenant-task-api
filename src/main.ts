@@ -11,7 +11,7 @@ export function setupApp(app: INestApplication) {
         origin: process.env.FRONTEND_URL || 'http://localhost:3000',
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tenant-Id'],
     });
     app.setGlobalPrefix('api/v1');
 }

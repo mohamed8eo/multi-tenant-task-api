@@ -2,6 +2,7 @@ import {
     Injectable,
     InternalServerErrorException,
     Logger,
+    NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
@@ -11,6 +12,7 @@ import { organizations } from '../db/schema/organizations.js';
 import { memberships } from '../db/schema/memberships.js';
 import { OrganizationResponse } from './dto/organization-response.dto.js';
 import { eq } from 'drizzle-orm';
+import { Tenant } from '../tenancy/interfaces/tenant.interface.js';
 
 function pgCode(error: unknown): string | undefined {
     const e = error as { code?: string; cause?: { code?: string } };
@@ -69,5 +71,15 @@ export class OrganizationsService {
             )
             .where(eq(memberships.userId, userId))
             .orderBy(organizations.createdAt);
+    }
+
+    async findCurrent(tenant: Tenant): Promise<OrganizationResponse> {
+        const [org] = await this.db
+            .select()
+            .from(organizations)
+            .where(eq(organizations.id, tenant.organizationId))
+        if (!org) throw new NotFoundException('Organization not found');
+
+        return { ...org, role: tenant.role }
     }
 }
