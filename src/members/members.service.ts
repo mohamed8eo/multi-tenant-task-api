@@ -10,7 +10,7 @@ import { MemberResponse } from './dto/members.dto.js';
 export class MembersService {
     constructor(@InjectDrizzle() private readonly db: NodePgDatabase) { }
 
-    async findAll(tenatId: string): Promise<MemberResponse[]> {
+    async findAll(tenantId: string): Promise<MemberResponse[]> {
         return await this.db
             .select({
                 userId: memberships.userId,
@@ -24,10 +24,8 @@ export class MembersService {
             .innerJoin(users,
                 eq(memberships.userId, users.id),
             )
-            .where(eq(memberships.organizationId, tenatId))
+            .where(eq(memberships.organizationId, tenantId))
             .orderBy(memberships.createdAt)
-
-
     }
 
 }

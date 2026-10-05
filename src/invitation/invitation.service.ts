@@ -9,49 +9,57 @@ import { invitations } from '../db/schema/invitations.js';
 import { createHash, randomBytes } from 'crypto';
 import { InvitationResponse } from './dto/invitation-response.dto.js';
 
+type Tx = Parameters<Parameters<NodePgDatabase['transaction']>[0]>[0];
+
 @Injectable()
 export class InvitationService {
     constructor(@InjectDrizzle() private readonly db: NodePgDatabase) { }
 
+    async createInvitation(dto: CreateInvitationDto, orgId: string, invitedBy: string) {
+        try {
+            return await this.db.transaction(async (tx) => {
+                await this.ensureNotMember(tx, orgId, dto.email);
+                await this.revokePendingInvitation(tx, orgId, dto.email);
 
-    async createInvitation(dto: CreateInvitationDto, orgId: string) {
+                const token = randomBytes(32).toString('hex');
+                const tokenHash = createHash('sha256')
+                    .update(token)
+                    .digest('hex');
 
-        return await this.db.transaction(async (tx) => {
-            await this.ensureNotMember(tx, orgId, dto.email)
-            await this.revokePendingInvitation(tx, orgId, dto.email);
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + 7);
 
-            const token = randomBytes(32).toString("hex")
-            const tokenHash = createHash('sha256')
-                .update(token)
-                .digest("hex")
+                const [invitation] = await tx
+                    .insert(invitations)
+                    .values({
+                        organizationId: orgId,
+                        email: dto.email,
+                        role: dto.role,
+                        tokenHash,
+                        expiresAt,
+                        invitedBy,
+                    })
+                    .returning();
+                // TODO: remove in Phase 6 — email delivery comes later
 
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
-
-            const [invitation] = await tx
-                .insert(invitations)
-                .values({
-                    organizationId: orgId,
-                    email: dto.email,
-                    role: dto.role,
-                    tokenHash,
-                    expiresAt,
-                })
-                .returning();
-            // TODO: remove in Phase 6 — email delivery comes later
-
-            return {
-                id: invitation.id,
-                email: invitation.email,
-                role: invitation.role,
-                expiresAt: invitation.expiresAt,
-                token,
-            };
-        })
-
-
+                return {
+                    id: invitation.id,
+                    email: invitation.email,
+                    role: invitation.role,
+                    expiresAt: invitation.expiresAt,
+                    token,
+                };
+            });
+        } catch (error) {
+            const e = error as { code?: string; cause?: { code?: string } };
+            if ((e.cause?.code ?? e.code) === '23505') {
+                throw new ConflictException('An invitation for this email is already pending');
+            }
+            throw error;
+        }
     }
-    async listpendingInvitation(orgId: string): Promise<InvitationResponse[]> {
+
+    async listPending(orgId: string): Promise<InvitationResponse[]> {
         return await this.db
             .select({
                 id: invitations.id,
@@ -68,9 +76,8 @@ export class InvitationService {
                 isNull(invitations.revokedAt),
                 gt(invitations.expiresAt, new Date()),
             ))
-            .orderBy(invitations.createdAt)
+            .orderBy(invitations.createdAt);
     }
-
 
     async revokeInvitation(orgId: string, invId: string): Promise<void> {
         const [revoked] = await this.db
@@ -89,7 +96,7 @@ export class InvitationService {
     }
 
     private async ensureNotMember(
-        tx: any,
+        tx: Tx,
         organizationId: string,
         email: string,
     ): Promise<void> {
@@ -110,7 +117,7 @@ export class InvitationService {
     }
 
     private async revokePendingInvitation(
-        tx: any,
+        tx: Tx,
         organizationId: string,
         email: string,
     ): Promise<void> {

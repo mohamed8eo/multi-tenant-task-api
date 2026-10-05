@@ -20,3 +20,20 @@ export class InvitationResponse {
     @ApiProperty({ nullable: true })
     invitedBy: string | null;
 }
+
+export class CreatedInvitationResponse {
+    @ApiProperty()
+    id: string;
+
+    @ApiProperty()
+    email: string;
+
+    @ApiProperty({ enum: ['owner', 'admin', 'member'] })
+    role: OrgRole;
+
+    @ApiProperty()
+    expiresAt: Date;
+
+    @ApiProperty()
+    token: string;
+}

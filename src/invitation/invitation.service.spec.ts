@@ -86,7 +86,7 @@ describe('InvitationService', () => {
     });
   });
 
-  describe('listpendingInvitation', () => {
+  describe('listPending', () => {
     it('should return pending invitations for the organization', async () => {
       const orgId = 'org-1';
       const pending = [
@@ -102,7 +102,7 @@ describe('InvitationService', () => {
 
       mockDb.orderBy.mockResolvedValueOnce(pending);
 
-      const result = await service.listpendingInvitation(orgId);
+      const result = await service.listPending(orgId);
 
       expect(mockDb.select).toHaveBeenCalled();
       expect(mockDb.from).toHaveBeenCalledWith(invitations);
