@@ -1,12 +1,14 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { CreateInvitationDto } from './dto/CreateInvitation.dto.js';
 import { users } from '../db/schema/users.js';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { memberships } from '../db/schema/memberships.js';
 import { invitations } from '../db/schema/invitations.js';
 import { createHash, randomBytes } from 'crypto';
+import { InvitationResponse } from './dto/invitation-response.dto.js';
+
 @Injectable()
 export class InvitationService {
     constructor(@InjectDrizzle() private readonly db: NodePgDatabase) { }
@@ -48,6 +50,42 @@ export class InvitationService {
         })
 
 
+    }
+    async listpendingInvitation(orgId: string): Promise<InvitationResponse[]> {
+        return await this.db
+            .select({
+                id: invitations.id,
+                email: invitations.email,
+                role: invitations.role,
+                expiresAt: invitations.expiresAt,
+                createdAt: invitations.createdAt,
+                invitedBy: invitations.invitedBy,
+            })
+            .from(invitations)
+            .where(and(
+                eq(invitations.organizationId, orgId),
+                isNull(invitations.acceptedAt),
+                isNull(invitations.revokedAt),
+                gt(invitations.expiresAt, new Date()),
+            ))
+            .orderBy(invitations.createdAt)
+    }
+
+
+    async revokeInvitation(orgId: string, invId: string): Promise<void> {
+        const [revoked] = await this.db
+            .update(invitations)
+            .set({ revokedAt: new Date() })
+            .where(and(
+                eq(invitations.organizationId, orgId),
+                eq(invitations.id, invId),
+                isNull(invitations.acceptedAt),
+                isNull(invitations.revokedAt),
+            )).returning();
+
+        if (!revoked) {
+            throw new NotFoundException('Invitation not found or already processed');
+        }
     }
 
     private async ensureNotMember(
