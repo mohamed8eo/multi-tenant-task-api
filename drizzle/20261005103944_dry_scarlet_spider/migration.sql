@@ -1,0 +1,2 @@
+CREATE INDEX "invitations_organization_id_idx" ON "invitations" ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "invitations_org_email_active_idx" ON "invitations" ("organization_id","email") WHERE "accepted_at" IS NULL AND "revoked_at" IS NULL;
