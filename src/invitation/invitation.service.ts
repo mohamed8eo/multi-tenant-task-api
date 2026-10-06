@@ -1,13 +1,14 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { CreateInvitationDto } from './dto/CreateInvitation.dto.js';
-import { users } from '../db/schema/users.js';
+import { User, users } from '../db/schema/users.js';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { memberships } from '../db/schema/memberships.js';
 import { invitations } from '../db/schema/invitations.js';
 import { createHash, randomBytes } from 'crypto';
 import { InvitationResponse } from './dto/invitation-response.dto.js';
+import { MembershipRes } from './interfaces/membership.interface.js';
 
 type Tx = Parameters<Parameters<NodePgDatabase['transaction']>[0]>[0];
 
@@ -93,6 +94,50 @@ export class InvitationService {
         if (!revoked) {
             throw new NotFoundException('Invitation not found or already processed');
         }
+    }
+
+
+    async acceptInvitation(user: User, token: string): Promise<MembershipRes> {
+        const tokenHash = createHash('sha256').update(token).digest('hex');
+        return await this.db.transaction(async (tx) => {
+
+            const [inv] = await tx
+                .select()
+                .from(invitations)
+                .where(and(
+                    eq(invitations.tokenHash, tokenHash),
+                    isNull(invitations.acceptedAt),
+                    isNull(invitations.revokedAt),
+                    gt(invitations.expiresAt, new Date())
+                ))
+
+            if (!inv) {
+                throw new NotFoundException('Invalid or expired invitation');
+            }
+
+            if (inv.email !== user.email) {
+                throw new BadRequestException('This invitation belongs to a different email address');
+            }
+
+
+            await this.ensureNotMember(tx, inv.organizationId, user.email)
+
+            await tx
+                .update(invitations)
+                .set({ acceptedAt: new Date() })
+                .where(eq(invitations.id, inv.id))
+
+            const [membership] = await tx
+                .insert(memberships)
+                .values({
+                    organizationId: inv.organizationId,
+                    userId: user.id,
+                    role: inv.role,
+                }).returning()
+
+
+            return membership
+        });
     }
 
     private async ensureNotMember(

@@ -133,4 +133,45 @@ describe('InvitationService', () => {
       );
     });
   });
+
+  describe('acceptInvitation', () => {
+    it('should successfully accept an invitation and create membership', async () => {
+      const user = { id: 'u-1', email: 'test@example.com' } as any;
+      const token = 'valid-token';
+      const invitation = {
+        id: 'inv-1',
+        organizationId: 'org-1',
+        email: 'test@example.com',
+        role: 'member',
+        expiresAt: new Date(Date.now() + 86400000),
+        acceptedAt: null,
+        revokedAt: null,
+      };
+
+      // select invitation
+      mockTx.where.mockResolvedValueOnce([invitation]);
+      // ensureNotMember returns no membership
+      mockTx.where.mockResolvedValueOnce([]);
+      // update invitation returning nothing or updated
+      mockTx.where.mockResolvedValueOnce([]);
+      // insert membership returning membership
+      mockTx.returning.mockResolvedValueOnce([{ id: 'm-1', organizationId: 'org-1', userId: 'u-1', role: 'member' }]);
+
+      const result = await service.acceptInvitation(user, token);
+
+      expect(mockDb.transaction).toHaveBeenCalled();
+      expect(result).toHaveProperty('id', 'm-1');
+    });
+
+    it('should throw NotFoundException when invitation is invalid or expired', async () => {
+      const user = { id: 'u-1', email: 'test@example.com' } as any;
+      const token = 'invalid-token';
+
+      mockTx.where.mockResolvedValueOnce([]);
+
+      await expect(service.acceptInvitation(user, token)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });

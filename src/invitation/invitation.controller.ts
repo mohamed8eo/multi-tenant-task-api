@@ -10,16 +10,18 @@ import { TenantGuard } from '../tenancy/guards/tenant.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { InvitationResponse, CreatedInvitationResponse } from './dto/invitation-response.dto.js';
 import { ApiTags, ApiBearerAuth, ApiHeader, ApiCreatedResponse, ApiOkResponse, ApiNoContentResponse } from '@nestjs/swagger';
+import type { User } from '../db/schema/users.js';
+import { MembershipRes } from './interfaces/membership.interface.js';
 
 @ApiTags('invitations')
 @ApiBearerAuth()
-@ApiHeader({ name: 'X-Tenant-Id', required: true, description: 'Organization ID' })
 @Controller('invitations')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 export class InvitationController {
     constructor(private readonly invitationService: InvitationService) { }
 
     @Post()
+    @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+    @ApiHeader({ name: 'X-Tenant-Id', required: true, description: 'Organization ID' })
     @Role('owner', 'admin')
     @ApiCreatedResponse({ type: CreatedInvitationResponse })
     async createInvitation(
@@ -31,6 +33,8 @@ export class InvitationController {
     }
 
     @Get()
+    @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+    @ApiHeader({ name: 'X-Tenant-Id', required: true, description: 'Organization ID' })
     @Role('owner', 'admin')
     @ApiOkResponse({ type: [InvitationResponse] })
     async listPending(@CurrentTenant() tenant: Tenant): Promise<InvitationResponse[]> {
@@ -38,6 +42,8 @@ export class InvitationController {
     }
 
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+    @ApiHeader({ name: 'X-Tenant-Id', required: true, description: 'Organization ID' })
     @HttpCode(204)
     @Role('owner', 'admin')
     @ApiNoContentResponse()
@@ -46,5 +52,15 @@ export class InvitationController {
         @Param('id', ParseUUIDPipe) invId: string,
     ): Promise<void> {
         return await this.invitationService.revokeInvitation(tenant.organizationId, invId);
+    }
+
+    @Post(':token/accept')
+    @UseGuards(JwtAuthGuard)
+    @ApiOkResponse()
+    async acceptInvitation(
+        @Param('token') token: string,
+        @CurrentUser() user: User,
+    ): Promise<MembershipRes> {
+        return await this.invitationService.acceptInvitation(user, token)
     }
 }
