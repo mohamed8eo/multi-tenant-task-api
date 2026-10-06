@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { sql } from 'drizzle-orm';
 
 export function setupApp(app: INestApplication) {
     app.use(cookieParser());
@@ -22,6 +23,15 @@ async function bootstrap() {
     });
     app.enableShutdownHooks();
     setupApp(app);
+
+    const db = app.get('DrizzleDatabase');
+    try {
+        await db.execute(sql`SELECT 1`);
+        console.log('Database connection verified successfully.');
+    } catch (error) {
+        console.error('Failed to connect to the database on startup:', error);
+        process.exit(1);
+    }
 
     const config = new DocumentBuilder()
         .setTitle('multi-tenant-task-api')
