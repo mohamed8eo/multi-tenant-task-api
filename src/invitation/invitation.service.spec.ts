@@ -65,7 +65,7 @@ describe('InvitationService', () => {
       // insert returning created invitation
       mockTx.returning.mockResolvedValueOnce([createdInvitation]);
 
-      const result = await service.createInvitation(dto, orgId);
+      const result = await service.createInvitation(dto, orgId, 'u-1');
 
       expect(mockDb.transaction).toHaveBeenCalled();
       expect(mockTx.insert).toHaveBeenCalledWith(invitations);
@@ -80,7 +80,7 @@ describe('InvitationService', () => {
       // ensureNotMember returns an existing membership
       mockTx.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
 
-      await expect(service.createInvitation(dto, orgId)).rejects.toThrow(
+      await expect(service.createInvitation(dto, orgId, 'u-1')).rejects.toThrow(
         ConflictException,
       );
     });
@@ -150,6 +150,8 @@ describe('InvitationService', () => {
 
       // select invitation
       mockTx.where.mockResolvedValueOnce([invitation]);
+      // select user
+      mockTx.where.mockResolvedValueOnce([{ email: 'test@example.com' }]);
       // ensureNotMember returns no membership
       mockTx.where.mockResolvedValueOnce([]);
       // update invitation returning nothing or updated

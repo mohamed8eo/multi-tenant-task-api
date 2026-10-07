@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MembersService } from './members.service.js';
 import { memberships } from '../db/schema/memberships.js';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 describe('MembersService', () => {
   let service: MembersService;
@@ -15,7 +15,7 @@ describe('MembersService', () => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
-    returning: vi.fn(),
+    returning: vi.fn().mockResolvedValue([{ userId: 'u-2', role: 'admin' }]),
   };
 
   beforeEach(async () => {
@@ -65,51 +65,58 @@ describe('MembersService', () => {
   });
 
   describe('updateRole', () => {
-    it('should successfully update member role', async () => {
-      const tenant = { organizationId: 'org-1', role: 'owner' as const };
-      const dto = { role: 'admin' as const };
-      const userId = 'u-2';
+    const owner = { organizationId: 'org-1', role: 'owner' as const };
 
-      mockDb.returning.mockResolvedValueOnce([{ userId, role: 'admin' }]);
+    it('should update a member role', async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-2', role: 'member' }]);
 
-      await expect(service.updateRole(tenant, dto, userId)).resolves.toBeUndefined();
+      await expect(service.updateRole(owner, { role: 'admin' }, 'u-2')).resolves.toBeUndefined();
       expect(mockDb.update).toHaveBeenCalledWith(memberships);
     });
 
-    it('should throw NotFoundException if member not found', async () => {
-      const tenant = { organizationId: 'org-1', role: 'owner' as const };
-      const dto = { role: 'admin' as const };
-      const userId = 'u-nonexistent';
+    it('should throw NotFoundException if the member does not exist', async () => {
+      mockDb.where.mockResolvedValueOnce([]);
 
-      mockDb.returning.mockResolvedValueOnce([]);
+      await expect(service.updateRole(owner, { role: 'admin' }, 'u-x')).rejects.toThrow(NotFoundException);
+    });
 
-      await expect(service.updateRole(tenant, dto, userId)).rejects.toThrow(
-        NotFoundException,
-      );
+    it("should throw ForbiddenException when the target is the owner", async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-1', role: 'owner' }]);
+
+      await expect(service.updateRole(owner, { role: 'member' }, 'u-1')).rejects.toThrow(ForbiddenException);
+      expect(mockDb.update).not.toHaveBeenCalled();
     });
   });
 
   describe('removeMember', () => {
-    it('should successfully remove a member', async () => {
-      const tenant = { organizationId: 'org-1', role: 'owner' as const };
-      const userId = 'u-2';
+    const asOwner = { organizationId: 'org-1', role: 'owner' as const };
+    const asAdmin = { organizationId: 'org-1', role: 'admin' as const };
 
-      // select membership returns member with role 'member'
-      mockDb.where.mockResolvedValueOnce([{ userId, role: 'member' }]);
-      mockDb.where.mockResolvedValueOnce(undefined);
-
-      await expect(service.removeMember(tenant, userId)).resolves.toBeUndefined();
+    it('should let the owner remove an admin', async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-2', role: 'admin' }]);
+      await expect(service.removeMember(asOwner, 'u-2')).resolves.toBeUndefined();
+      expect(mockDb.delete).toHaveBeenCalledWith(memberships);
     });
 
-    it('should throw BadRequestException when trying to remove owner', async () => {
-      const tenant = { organizationId: 'org-1', role: 'owner' as const };
-      const userId = 'u-1';
+    it('should let an admin remove a member', async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-3', role: 'member' }]);
+      await expect(service.removeMember(asAdmin, 'u-3')).resolves.toBeUndefined();
+    });
 
-      mockDb.where.mockResolvedValueOnce([{ userId, role: 'owner' }]);
+    it('should not let an admin remove another admin', async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-2', role: 'admin' }]);
+      await expect(service.removeMember(asAdmin, 'u-2')).rejects.toThrow(ForbiddenException);
+      expect(mockDb.delete).not.toHaveBeenCalled();
+    });
 
-      await expect(service.removeMember(tenant, userId)).rejects.toThrow(
-        BadRequestException,
-      );
+    it('should never remove the owner, even for the owner', async () => {
+      mockDb.where.mockResolvedValueOnce([{ userId: 'u-1', role: 'owner' }]);
+      await expect(service.removeMember(asOwner, 'u-1')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if the member does not exist', async () => {
+      mockDb.where.mockResolvedValueOnce([]);
+      await expect(service.removeMember(asOwner, 'u-x')).rejects.toThrow(NotFoundException);
     });
   });
 });

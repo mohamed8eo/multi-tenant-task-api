@@ -7,10 +7,11 @@ import { users, organizations } from '../src/db/schema/index.js';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
-describe('Auth & Organizations (e2e)', () => {
+describe('Auth, Organizations & Members (e2e)', () => {
   let app: INestApplication;
   let db: any;
   let accessToken: string;
+  let orgId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -87,6 +88,7 @@ describe('Auth & Organizations (e2e)', () => {
     expect(orgRes.body).toHaveProperty('id');
     expect(orgRes.body.name).toBe('E2E Org');
     expect(orgRes.body.role).toBe('owner');
+    orgId = orgRes.body.id;
 
     const listRes = await request(app.getHttpServer())
       .get('/api/v1/organizations')
@@ -96,5 +98,17 @@ describe('Auth & Organizations (e2e)', () => {
     expect(Array.isArray(listRes.body)).toBe(true);
     expect(listRes.body.length).toBeGreaterThan(0);
     expect(listRes.body.find((o: any) => o.name === 'E2E Org')).toBeDefined();
+  });
+
+  it('/api/v1/members (GET) - list members', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/members')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('X-Tenant-Id', orgId)
+      .expect(200);
+
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(1);
+    expect(res.body[0].role).toBe('owner');
   });
 });

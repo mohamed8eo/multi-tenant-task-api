@@ -97,7 +97,7 @@ export class InvitationService {
     }
 
 
-    async acceptInvitation(user: User, token: string): Promise<MembershipRes> {
+    async acceptInvitation(userId: string, token: string): Promise<MembershipRes> {
         const tokenHash = createHash('sha256').update(token).digest('hex');
         return await this.db.transaction(async (tx) => {
 
@@ -115,7 +115,11 @@ export class InvitationService {
                 throw new NotFoundException('Invalid or expired invitation');
             }
 
-            if (inv.email !== user.email) {
+            const [user] = await tx.select({ email: users.email })
+                .from(users)
+                .where(eq(users.id, userId))
+
+            if (!user || inv.email !== user.email) {
                 throw new BadRequestException('This invitation belongs to a different email address');
             }
 
@@ -131,7 +135,7 @@ export class InvitationService {
                 .insert(memberships)
                 .values({
                     organizationId: inv.organizationId,
-                    userId: user.id,
+                    userId: userId,
                     role: inv.role,
                 }).returning()
 

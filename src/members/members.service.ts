@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { memberships } from '../db/schema/memberships.js';
@@ -31,6 +31,12 @@ export class MembersService {
     }
 
     async updateRole(tenant: Tenant, dto: UpdateRoleDto, userId: string): Promise<void> {
+        const target = await this.getMembership(tenant.organizationId, userId)
+
+        if (target.role === 'owner') {
+            throw new ForbiddenException("The owner's role can't be changed");
+        }
+
         const [val] = await this.db
             .update(memberships)
             .set({ role: dto.role })
@@ -45,28 +51,36 @@ export class MembersService {
     }
 
     async removeMember(tenant: Tenant, userId: string): Promise<void> {
-        const [membership] = await this.db
-            .select()
-            .from(memberships)
-            .where(and(
-                eq(memberships.organizationId, tenant.organizationId),
-                eq(memberships.userId, userId)
-            ));
+        const target = await this.getMembership(tenant.organizationId, userId);
 
-        if (!membership) {
-            throw new NotFoundException('Member not found in this organization');
+        if (target.role === 'owner') {
+            throw new ForbiddenException('The owner cannot be removed');
         }
-
-        if (membership.role === 'owner') {
-            throw new BadRequestException('Cannot remove organization owner');
+        if (tenant.role === 'admin' && target.role !== 'member') {
+            throw new ForbiddenException('Admins can only remove members');
         }
 
         await this.db
             .delete(memberships)
             .where(and(
                 eq(memberships.organizationId, tenant.organizationId),
-                eq(memberships.userId, userId)
+                eq(memberships.userId, userId),
             ));
+    }
+
+
+    private async getMembership(orgId: string, userId: string) {
+        const [membership] = await this.db
+            .select()
+            .from(memberships)
+            .where(and(
+                eq(memberships.organizationId, orgId),
+                eq(memberships.userId, userId)
+            ))
+        if (!membership) {
+            throw new NotFoundException('Member not found in this organization');
+        }
+        return membership;
     }
 
 }

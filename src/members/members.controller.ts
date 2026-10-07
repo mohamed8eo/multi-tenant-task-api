@@ -24,26 +24,26 @@ export class MembersController {
         return this.membersService.findAll(tenant.organizationId);
     }
 
-    @Patch(':id')
-    @Role('owner', 'admin')
+    @Patch(':userId')
+    @Role('owner')
     @HttpCode(204)
     @ApiNoContentResponse()
     async updateRole(
         @CurrentTenant() tenant: Tenant,
         @Body() dto: UpdateRoleDto,
-        @Param('id', ParseUUIDPipe) id: string
+        @Param('userId', ParseUUIDPipe) userId: string,
     ): Promise<void> {
-        return await this.membersService.updateRole(tenant, dto, id)
+        return await this.membersService.updateRole(tenant, dto, userId);
     }
 
-    @Delete(':id')
+    @Delete(':userId')
     @Role('owner', 'admin')
     @HttpCode(204)
     @ApiNoContentResponse()
     async removeMember(
         @CurrentTenant() tenant: Tenant,
-        @Param('id', ParseUUIDPipe) id: string
+        @Param('userId', ParseUUIDPipe) userId: string,
     ): Promise<void> {
-        return await this.membersService.removeMember(tenant, id);
+        return await this.membersService.removeMember(tenant, userId);
     }
 }

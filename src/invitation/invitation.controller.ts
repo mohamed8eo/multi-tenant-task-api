@@ -59,8 +59,8 @@ export class InvitationController {
     @ApiOkResponse()
     async acceptInvitation(
         @Param('token') token: string,
-        @CurrentUser() user: User,
+        @CurrentUser("userId") userId: string,
     ): Promise<MembershipRes> {
-        return await this.invitationService.acceptInvitation(user, token)
+        return await this.invitationService.acceptInvitation(userId, token)
     }
 }
