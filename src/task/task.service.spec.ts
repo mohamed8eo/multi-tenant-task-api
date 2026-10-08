@@ -71,15 +71,17 @@ describe('TaskService', () => {
   describe('findAll', () => {
     it('should return paginated tasks and metadata', async () => {
       const orgId = 'org-1';
-      const paginationQuery = { page: 1, limit: 10, offset: 0 };
+      const query = { page: 1, limit: 10, offset: 0 };
       const taskList = [{ id: 't-1', title: 'Task 1', organizationId: orgId }];
 
       mockDb.select
         .mockReturnValueOnce({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                offset: vi.fn().mockResolvedValueOnce(taskList),
+              orderBy: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  offset: vi.fn().mockResolvedValueOnce(taskList),
+                }),
               }),
             }),
           }),
@@ -90,7 +92,7 @@ describe('TaskService', () => {
           }),
         });
 
-      const result = await service.findAll(orgId, paginationQuery);
+      const result = await service.findAll(orgId, query);
 
       expect(result).toEqual({
         data: taskList,

@@ -9,7 +9,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { CurrentTenant } from '../tenancy/decorators/current-tenant.decorator.js';
 import type { Tenant } from '../tenancy/interfaces/tenant.interface.js';
 import { Task } from '../db/schema/tasks.js';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { GetTasksQueryDto } from './dto/get-tasks-query.dto.js';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface.js';
 import { ApiTags, ApiBearerAuth, ApiHeader, ApiCreatedResponse, ApiOkResponse, ApiNoContentResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
@@ -36,15 +36,15 @@ export class TaskController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all tasks with pagination' })
+    @ApiOperation({ summary: 'Get all tasks with pagination, filtering, searching, and sorting' })
     @ApiOkResponse({ description: 'Tasks retrieved successfully.' })
     @ApiResponse({ status: 401, description: 'Unauthorized.' })
     @ApiResponse({ status: 403, description: 'Forbidden.' })
     async findAll(
         @CurrentTenant() tenant: Tenant,
-        @Query() paginationQuery: PaginationQueryDto,
+        @Query() query: GetTasksQueryDto,
     ): Promise<PaginatedResponse<Task>> {
-        return await this.taskService.findAll(tenant.organizationId, paginationQuery);
+        return await this.taskService.findAll(tenant.organizationId, query);
     }
 
     @Get(':id')

@@ -16,6 +16,7 @@ describe('MembersService', () => {
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([{ userId: 'u-2', role: 'admin' }]),
+    transaction: vi.fn(async (cb) => cb(mockDb)),
   };
 
   beforeEach(async () => {
