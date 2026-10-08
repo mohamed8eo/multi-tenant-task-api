@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module.js';
 import { OrganizationsModule } from './organizations/organizations.module.js';
 import { MembersModule } from './members/members.module.js';
 import { InvitationModule } from './invitation/invitation.module.js';
+import { ProjectModule } from './project/project.module.js';
 import Joi from 'joi';
 
 const validationSchema = Joi.object({
@@ -49,6 +50,7 @@ function validate(config: Record<string, unknown>) {
         OrganizationsModule,
         MembersModule,
         InvitationModule,
+        ProjectModule,
     ],
     controllers: [],
     providers: [

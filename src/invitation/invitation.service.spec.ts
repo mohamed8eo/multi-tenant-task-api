@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InvitationService } from './invitation.service.js';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { invitations } from '../db/schema/invitations.js';
 
 describe('InvitationService', () => {
@@ -135,44 +135,83 @@ describe('InvitationService', () => {
   });
 
   describe('acceptInvitation', () => {
-    it('should successfully accept an invitation and create membership', async () => {
-      const user = { id: 'u-1', email: 'test@example.com' } as any;
-      const token = 'valid-token';
-      const invitation = {
-        id: 'inv-1',
-        organizationId: 'org-1',
-        email: 'test@example.com',
-        role: 'member',
-        expiresAt: new Date(Date.now() + 86400000),
-        acceptedAt: null,
-        revokedAt: null,
-      };
+    const userId = 'u-1';
+    const token = 'valid-token';
 
-      // select invitation
-      mockTx.where.mockResolvedValueOnce([invitation]);
+    const invitation = {
+      id: 'inv-1',
+      organizationId: 'org-1',
+      email: 'test@example.com',
+      role: 'member',
+      expiresAt: new Date(Date.now() + 86400000),
+      acceptedAt: null,
+      revokedAt: null,
+    };
+
+    it('should successfully accept an invitation and create membership', async () => {
+      // claim UPDATE chain: update().set().where() must return the tx synchronously
+      mockTx.where.mockReturnValueOnce(mockTx);
+      // claim UPDATE returning the invitation
+      mockTx.returning.mockResolvedValueOnce([invitation]);
       // select user
       mockTx.where.mockResolvedValueOnce([{ email: 'test@example.com' }]);
       // ensureNotMember returns no membership
       mockTx.where.mockResolvedValueOnce([]);
-      // update invitation returning nothing or updated
-      mockTx.where.mockResolvedValueOnce([]);
       // insert membership returning membership
-      mockTx.returning.mockResolvedValueOnce([{ id: 'm-1', organizationId: 'org-1', userId: 'u-1', role: 'member' }]);
+      mockTx.returning.mockResolvedValueOnce([{ id: 'm-1', organizationId: 'org-1', userId, role: 'member' }]);
 
-      const result = await service.acceptInvitation(user, token);
+      const result = await service.acceptInvitation(userId, token);
 
       expect(mockDb.transaction).toHaveBeenCalled();
+      expect(mockTx.update).toHaveBeenCalledWith(invitations);
+      expect(mockTx.set).toHaveBeenCalledWith({ acceptedAt: expect.any(Date) });
       expect(result).toHaveProperty('id', 'm-1');
     });
 
     it('should throw NotFoundException when invitation is invalid or expired', async () => {
-      const user = { id: 'u-1', email: 'test@example.com' } as any;
-      const token = 'invalid-token';
+      // claim UPDATE returns no row
+      mockTx.returning.mockResolvedValueOnce([]);
 
-      mockTx.where.mockResolvedValueOnce([]);
-
-      await expect(service.acceptInvitation(user, token)).rejects.toThrow(
+      await expect(service.acceptInvitation(userId, token)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw ForbiddenException when the invitation belongs to a different email', async () => {
+      mockTx.where.mockReturnValueOnce(mockTx);
+      mockTx.returning.mockResolvedValueOnce([invitation]);
+      // select user with a different email
+      mockTx.where.mockResolvedValueOnce([{ email: 'other@example.com' }]);
+
+      await expect(service.acceptInvitation(userId, token)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw ConflictException when the user is already a member', async () => {
+      mockTx.where.mockReturnValueOnce(mockTx);
+      mockTx.returning.mockResolvedValueOnce([invitation]);
+      mockTx.where.mockResolvedValueOnce([{ email: 'test@example.com' }]);
+      // ensureNotMember finds an existing membership
+      mockTx.where.mockResolvedValueOnce([{ id: 'm-0' }]);
+
+      await expect(service.acceptInvitation(userId, token)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should map a unique violation on membership insert to ConflictException', async () => {
+      mockTx.where.mockReturnValueOnce(mockTx);
+      mockTx.returning.mockResolvedValueOnce([invitation]);
+      mockTx.where.mockResolvedValueOnce([{ email: 'test@example.com' }]);
+      mockTx.where.mockResolvedValueOnce([]);
+      // insert membership hits unique(userId, organizationId)
+      mockTx.returning.mockRejectedValueOnce(
+        Object.assign(new Error('duplicate key value'), { cause: { code: '23505' } }),
+      );
+
+      await expect(service.acceptInvitation(userId, token)).rejects.toThrow(
+        ConflictException,
       );
     });
   });

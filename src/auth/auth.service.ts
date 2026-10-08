@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import { RegisterResponse } from './interfaces/register.interface.js';
 import { LoginDto } from './dto/login.dto.js';
 import { LoginResponse } from './interfaces/login.interface.js';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, gt } from 'drizzle-orm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { TokenResponse } from './interfaces/token.interface.js'
@@ -128,29 +128,26 @@ export class AuthService {
             throw new UnauthorizedException('Invalid refresh token');
         }
 
-        const [tokenRecord] = await this.db
-            .select()
-            .from(refreshTokens)
-            .where(
-                and(
-                    eq(refreshTokens.id, tokenId),
-                    eq(refreshTokens.userId, userId),
-                ),
-            );
-
-        if (!tokenRecord) {
-            throw new UnauthorizedException('Invalid refresh token');
-        }
-
-        if (tokenRecord.revokedAt !== null || new Date() > tokenRecord.expiresAt) {
-            throw new UnauthorizedException('Invalid refresh token');
-        }
-
-        // Revoke Token A
-        await this.db
+        const [revoked] = await this.db
             .update(refreshTokens)
             .set({ revokedAt: new Date() })
-            .where(eq(refreshTokens.id, tokenRecord.id));
+            .where(and(
+                eq(refreshTokens.id, tokenId),
+                eq(refreshTokens.userId, userId),
+                isNull(refreshTokens.revokedAt),
+                gt(refreshTokens.expiresAt, new Date()),
+            ))
+            .returning();
+
+        if (!revoked) {
+            // if the row exists and was already revoked, someone replayed an old token: kill all sessions
+            const [row] = await this.db
+                .select()
+                .from(refreshTokens)
+                .where(eq(refreshTokens.id, tokenId));
+            if (row?.revokedAt) await this.logout(userId);
+            throw new UnauthorizedException('Invalid refresh token');
+        }
 
         const { accessToken, refreshToken, tokenId: newTokenId } = await this.createToken(userId);
         await this.saveRefreshToken(userId, refreshToken, newTokenId);

@@ -37,3 +37,20 @@ export class CreatedInvitationResponse {
     @ApiProperty()
     token: string;
 }
+
+export class MembershipResponseDto {
+    @ApiProperty()
+    id: string;
+
+    @ApiProperty({ enum: ['owner', 'admin', 'member'] })
+    role: OrgRole;
+
+    @ApiProperty()
+    createdAt: Date;
+
+    @ApiProperty()
+    organizationId: string;
+
+    @ApiProperty()
+    userId: string;
+}

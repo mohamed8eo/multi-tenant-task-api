@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { CreateInvitationDto } from './dto/CreateInvitation.dto.js';
@@ -99,49 +99,50 @@ export class InvitationService {
 
     async acceptInvitation(userId: string, token: string): Promise<MembershipRes> {
         const tokenHash = createHash('sha256').update(token).digest('hex');
-        return await this.db.transaction(async (tx) => {
+        try {
+            return await this.db.transaction(async (tx) => {
+                const [inv] = await tx
+                    .update(invitations)
+                    .set({ acceptedAt: new Date() })
+                    .where(and(
+                        eq(invitations.tokenHash, tokenHash),
+                        isNull(invitations.acceptedAt),
+                        isNull(invitations.revokedAt),
+                        gt(invitations.expiresAt, new Date()),
+                    ))
+                    .returning();
 
-            const [inv] = await tx
-                .select()
-                .from(invitations)
-                .where(and(
-                    eq(invitations.tokenHash, tokenHash),
-                    isNull(invitations.acceptedAt),
-                    isNull(invitations.revokedAt),
-                    gt(invitations.expiresAt, new Date())
-                ))
+                if (!inv) {
+                    throw new NotFoundException('Invalid or expired invitation');
+                }
 
-            if (!inv) {
-                throw new NotFoundException('Invalid or expired invitation');
+                const [user] = await tx.select({ email: users.email })
+                    .from(users)
+                    .where(eq(users.id, userId))
+
+                if (!user || inv.email !== user.email) {
+                    throw new ForbiddenException('This invitation belongs to a different email address');
+                }
+
+                await this.ensureNotMember(tx, inv.organizationId, user.email)
+
+                const [membership] = await tx
+                    .insert(memberships)
+                    .values({
+                        organizationId: inv.organizationId,
+                        userId: userId,
+                        role: inv.role,
+                    }).returning()
+
+                return membership
+            });
+        } catch (error) {
+            const e = error as { code?: string; cause?: { code?: string } };
+            if ((e.cause?.code ?? e.code) === '23505') {
+                throw new ConflictException('User is already a member of this organization');
             }
-
-            const [user] = await tx.select({ email: users.email })
-                .from(users)
-                .where(eq(users.id, userId))
-
-            if (!user || inv.email !== user.email) {
-                throw new BadRequestException('This invitation belongs to a different email address');
-            }
-
-
-            await this.ensureNotMember(tx, inv.organizationId, user.email)
-
-            await tx
-                .update(invitations)
-                .set({ acceptedAt: new Date() })
-                .where(eq(invitations.id, inv.id))
-
-            const [membership] = await tx
-                .insert(memberships)
-                .values({
-                    organizationId: inv.organizationId,
-                    userId: userId,
-                    role: inv.role,
-                }).returning()
-
-
-            return membership
-        });
+            throw error;
+        }
     }
 
     private async ensureNotMember(

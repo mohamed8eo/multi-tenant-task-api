@@ -5,7 +5,7 @@ import { CurrentTenant } from '../tenancy/decorators/current-tenant.decorator.js
 import type { Tenant } from '../tenancy/interfaces/tenant.interface.js';
 import { MemberResponse } from './dto/members.dto.js';
 import { MembersService } from './members.service.js';
-import { ApiTags, ApiBearerAuth, ApiHeader, ApiOkResponse, ApiNoContentResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiHeader, ApiOkResponse, ApiNoContentResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UpdateRoleDto } from './dto/updateRole.dto.js';
 import { Role } from '../tenancy/decorators/role.decorator.js';
 import { RolesGuard } from '../tenancy/guards/roles.guard.js';
@@ -19,7 +19,10 @@ export class MembersController {
     constructor(private readonly membersService: MembersService) { }
 
     @Get()
+    @ApiOperation({ summary: 'Get all members of the current organization' })
     @ApiOkResponse({ type: [MemberResponse] })
+    @ApiResponse({ status: 401, description: 'Unauthorized.' })
+    @ApiResponse({ status: 403, description: 'Forbidden.' })
     findAll(@CurrentTenant() tenant: Tenant): Promise<MemberResponse[]> {
         return this.membersService.findAll(tenant.organizationId);
     }
@@ -27,7 +30,12 @@ export class MembersController {
     @Patch(':userId')
     @Role('owner')
     @HttpCode(204)
-    @ApiNoContentResponse()
+    @ApiOperation({ summary: 'Update member role (Owner only)' })
+    @ApiNoContentResponse({ description: 'Role updated successfully.' })
+    @ApiResponse({ status: 400, description: 'Bad request / validation error.' })
+    @ApiResponse({ status: 401, description: 'Unauthorized.' })
+    @ApiResponse({ status: 403, description: 'Forbidden (Owner role required).' })
+    @ApiResponse({ status: 404, description: 'Member not found.' })
     async updateRole(
         @CurrentTenant() tenant: Tenant,
         @Body() dto: UpdateRoleDto,
@@ -39,7 +47,11 @@ export class MembersController {
     @Delete(':userId')
     @Role('owner', 'admin')
     @HttpCode(204)
-    @ApiNoContentResponse()
+    @ApiOperation({ summary: 'Remove a member from the organization (Owner/Admin)' })
+    @ApiNoContentResponse({ description: 'Member removed successfully.' })
+    @ApiResponse({ status: 401, description: 'Unauthorized.' })
+    @ApiResponse({ status: 403, description: 'Forbidden.' })
+    @ApiResponse({ status: 404, description: 'Member not found.' })
     async removeMember(
         @CurrentTenant() tenant: Tenant,
         @Param('userId', ParseUUIDPipe) userId: string,

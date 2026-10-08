@@ -19,7 +19,7 @@ describe('AuthService', () => {
     returning: vi.fn(),
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
-    where: vi.fn(),
+    where: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
@@ -207,11 +207,63 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if no matching valid refresh token found in db', async () => {
       mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: 'user-id-1', jti: 'token-id-1' });
+      const logoutSpy = vi.spyOn(service, 'logout').mockResolvedValue(undefined);
+
+      // claim UPDATE chain: update().set().where() must return the db synchronously
+      mockDb.where.mockImplementationOnce(() => mockDb);
+      // claim UPDATE revokes nothing
+      mockDb.returning.mockResolvedValueOnce([]);
+      // follow-up select finds no row
       mockDb.where.mockResolvedValueOnce([]);
 
       await expect(service.refresh('valid-jwt-no-record')).rejects.toThrow(
         new UnauthorizedException('Invalid refresh token'),
       );
+      expect(logoutSpy).not.toHaveBeenCalled();
+      expect(mockJwtService.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnauthorizedException and revoke all sessions when a revoked token is replayed', async () => {
+      const userId = 'user-id-1';
+      const tokenId = 'token-id-1';
+
+      mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: userId, jti: tokenId });
+      const logoutSpy = vi.spyOn(service, 'logout').mockResolvedValue(undefined);
+
+      // claim UPDATE chain
+      mockDb.where.mockImplementationOnce(() => mockDb);
+      // claim UPDATE revokes nothing — token was already revoked
+      mockDb.returning.mockResolvedValueOnce([]);
+      // follow-up select finds the revoked row
+      mockDb.where.mockResolvedValueOnce([{ id: tokenId, revokedAt: new Date() }]);
+
+      await expect(service.refresh('replayed-token')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+      expect(logoutSpy).toHaveBeenCalledWith(userId);
+      expect(mockJwtService.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnauthorizedException without killing sessions when the token is expired', async () => {
+      const userId = 'user-id-1';
+      const tokenId = 'token-id-1';
+
+      mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: userId, jti: tokenId });
+      const logoutSpy = vi.spyOn(service, 'logout').mockResolvedValue(undefined);
+
+      // claim UPDATE chain
+      mockDb.where.mockImplementationOnce(() => mockDb);
+      // claim UPDATE revokes nothing — token expired
+      mockDb.returning.mockResolvedValueOnce([]);
+      // follow-up select finds an active (non-revoked) expired row
+      mockDb.where.mockResolvedValueOnce([
+        { id: tokenId, revokedAt: null, expiresAt: new Date(Date.now() - 1000) },
+      ]);
+
+      await expect(service.refresh('expired-token')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+      expect(logoutSpy).not.toHaveBeenCalled();
     });
 
     it('should successfully refresh tokens when valid and revoke old token', async () => {
@@ -227,7 +279,8 @@ describe('AuthService', () => {
       };
 
       mockJwtService.verifyAsync.mockResolvedValueOnce({ sub: userId, jti: tokenId });
-      mockDb.where.mockResolvedValueOnce([tokenRecord]);
+      // claim UPDATE atomically revokes the old token (where returns the db via base impl)
+      mockDb.returning.mockResolvedValueOnce([tokenRecord]);
 
       const result = await service.refresh(oldToken);
 
@@ -236,6 +289,7 @@ describe('AuthService', () => {
       });
       expect(mockDb.update).toHaveBeenCalled();
       expect(mockDb.set).toHaveBeenCalledWith({ revokedAt: expect.any(Date) });
+      expect(mockDb.returning).toHaveBeenCalled();
       expect(mockJwtService.signAsync).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         accessToken: 'mock-token',

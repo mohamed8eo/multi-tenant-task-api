@@ -43,7 +43,10 @@ export class OrganizationsController {
 
     @Get('current')
     @TenantScoped()
-    @ApiOkResponse({ type: OrganizationResponse })
+    @ApiOperation({ summary: 'Get current organization details based on tenant header' })
+    @ApiOkResponse({ type: OrganizationResponse, description: 'Current organization retrieved successfully.' })
+    @ApiResponse({ status: 401, description: 'Unauthorized.' })
+    @ApiResponse({ status: 403, description: 'Forbidden / Not a member.' })
     async findCurrent(@CurrentTenant() tenant: Tenant): Promise<OrganizationResponse> {
         return await this.organizationsService.findCurrent(tenant)
     }
