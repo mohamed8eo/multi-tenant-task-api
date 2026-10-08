@@ -29,7 +29,7 @@ export class TaskController {
     @ApiResponse({ status: 403, description: 'Forbidden.' })
     async create(
         @Body() createTaskDto: CreateTaskDto,
-        @CurrentUser() userId: string,
+        @CurrentUser('userId') userId: string,
         @CurrentTenant() tenant: Tenant,
     ): Promise<Task> {
         return await this.taskService.create(createTaskDto, userId, tenant.organizationId);
@@ -85,7 +85,7 @@ export class TaskController {
     async remove(
         @Param('id', ParseUUIDPipe) id: string,
         @CurrentTenant() tenant: Tenant,
-        @CurrentUser() userId: string
+        @CurrentUser('userId') userId: string
     ): Promise<void> {
         return this.taskService.remove(id, tenant.organizationId, tenant.role, userId);
     }

@@ -46,6 +46,12 @@ describe('CommentsService', () => {
       const dto = { body: 'Test comment' };
       const created = { id: 'c-1', taskId: 't-1', organizationId: 'org-1', authorId: 'u-1', body: dto.body, createdAt: new Date(), updatedAt: new Date() };
 
+      mockDb.select.mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValueOnce([{ id: 't-1' }]),
+        }),
+      });
+
       mockDb.returning.mockResolvedValueOnce([created]);
 
       const result = await service.create('t-1', 'org-1', 'u-1', dto);
@@ -58,6 +64,18 @@ describe('CommentsService', () => {
         authorId: 'u-1',
       });
       expect(result).toEqual(created);
+    });
+
+    it('should throw NotFoundException if task does not exist', async () => {
+      const dto = { body: 'Test comment' };
+
+      mockDb.select.mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValueOnce([]),
+        }),
+      });
+
+      await expect(service.create('t-999', 'org-1', 'u-1', dto)).rejects.toThrow(NotFoundException);
     });
   });
 

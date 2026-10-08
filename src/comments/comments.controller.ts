@@ -32,7 +32,7 @@ export class CommentsController {
         @Param('id', ParseUUIDPipe) taskId: string,
         @Body() createCommentDto: CreateCommentDto,
         @CurrentTenant() tenant: Tenant,
-        @CurrentUser() userId: string,
+        @CurrentUser('userId') userId: string,
     ): Promise<Comment> {
         return await this.commentsService.create(
             taskId,
@@ -91,7 +91,7 @@ export class CommentsController {
     async remove(
         @Param('id', ParseUUIDPipe) commentId: string,
         @CurrentTenant() tenant: Tenant,
-        @CurrentUser() userId: string,
+        @CurrentUser('userId') userId: string,
     ): Promise<void> {
         return await this.commentsService.remove(
             commentId,

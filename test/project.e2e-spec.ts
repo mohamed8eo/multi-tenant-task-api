@@ -148,7 +148,7 @@ describe('Projects endpoints (e2e)', () => {
         .send({ name: 'Delete Me', status: 'active' })
         .expect(201);
 
-      await call(app, 'delete', `/projects/${createRes.body.id}`, owner, orgId).expect(200);
+      await call(app, 'delete', `/projects/${createRes.body.id}`, owner, orgId).expect(204);
     });
   });
 });

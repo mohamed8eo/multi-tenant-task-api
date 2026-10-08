@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/update-task.dto.js';
 import { Task, tasks } from '../db/schema/tasks.js';
@@ -122,6 +122,10 @@ export class TaskService {
                 eq(tasks.id, id),
                 eq(tasks.organizationId, orgId)
             ))
+
+        if (!task) {
+            throw new NotFoundException('Task not found');
+        }
 
         return task
     }

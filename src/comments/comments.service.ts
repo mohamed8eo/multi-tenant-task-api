@@ -4,6 +4,7 @@ import { UpdateCommentDto } from './dto/update-comment.dto.js';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Comment, comments } from '../db/schema/comments.js';
+import { tasks } from '../db/schema/tasks.js';
 import { OrgRole } from '../db/schema/memberships.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
@@ -19,6 +20,18 @@ export class CommentsService {
         userId: string,
         createCommentDto: CreateCommentDto,
     ): Promise<Comment> {
+        const [task] = await this.db
+            .select()
+            .from(tasks)
+            .where(and(
+                eq(tasks.id, taskId),
+                eq(tasks.organizationId, orgId)
+            ));
+
+        if (!task) {
+            throw new NotFoundException('Task not found');
+        }
+
         const [comment] = await this.db
             .insert(comments)
             .values({
