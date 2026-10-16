@@ -12,6 +12,7 @@ import { ProjectModule } from './project/project.module.js';
 import { TaskModule } from './task/task.module.js';
 import { CommentsModule } from './comments/comments.module.js';
 import { AuditModule } from './audit/audit.module.js';
+import { TenancyModule } from './tenancy/tenancy.module.js';
 import Joi from 'joi';
 
 const validationSchema = Joi.object({
@@ -57,6 +58,7 @@ function validate(config: Record<string, unknown>) {
         TaskModule,
         CommentsModule,
         AuditModule,
+        TenancyModule,
     ],
     controllers: [],
     providers: [
